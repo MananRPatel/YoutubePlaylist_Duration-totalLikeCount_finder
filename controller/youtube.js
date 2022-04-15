@@ -2,10 +2,13 @@ const axios = require("axios");
 require("dotenv").config;
 const lock = require("async-mutex");
 const apimutex = new lock.Mutex();
+const countmutex = new lock.Mutex();
+let mainResponse;
 
 let totalDurationOfVideo = 0;
 let totalLikeCount = 0;
 let totalVideo = 0;
+let videoInPlaylist = 0;
 
 getVideoTimeline = (time) => {
   const date = ["H", "M", "S"];
@@ -30,14 +33,19 @@ getVideoTimeline = (time) => {
 
 const getVideoInfo = async (id) => {
   const url = `https://www.googleapis.com/youtube/v3/videos?part=snippet%2CcontentDetails%2Cstatistics&id=${id}&fields=items(contentDetails(duration)),items(statistics(likeCount))&key=${process.env.YOUTUBE_API}`;
+
   try {
     const response = await axios.get(url);
     const itm = response.data.items;
-    if (itm.length == 0) throw new Error("This is not id of playlist");
+    if (+itm.length == 0) throw new Error("Id is not good url " + url);
 
     await apimutex.runExclusive(() => {
       totalDurationOfVideo += getVideoTimeline(itm[0].contentDetails.duration);
       totalLikeCount += +itm[0].statistics.likeCount;
+      countmutex.runExclusive(() => {
+        totalVideo--;
+        if (totalVideo == 0) mainResponse.send(statisticsOfVideo());
+      });
     });
   } catch (error) {
     throw new Error(error);
@@ -51,19 +59,24 @@ const getPlaylistsInfo = async (id, pageToken = null) => {
   }
   const url = `https://www.googleapis.com/youtube/v3/playlistItems?${currentToken}&part=snippet&maxResults=10&playlistId=${id}&key=${process.env.YOUTUBE_API}&fields=items(snippet(resourceId)),nextPageToken,prevPageToken,pageInfo`;
   try {
-
     const response = await axios.get(url);
     if (response.statusCode == 400) throw new Error(response.error);
-
-    const nextPageToken =  response.data.nextPageToken;
+    const nextPageToken = await response.data.nextPageToken;
     const itm = response.data.items;
 
-    if (pageToken == null) totalVideo = +response.data.pageInfo.totalResults;
+    if (pageToken == null)
+      countmutex.runExclusive(() => {
+        totalVideo = +response.data.pageInfo.totalResults;
+        videoInPlaylist = totalVideo;
+      });
 
     for (let index = 0; index < itm.length; index++) {
-      await getVideoInfo(itm[index].snippet.resourceId.videoId);
+      getVideoInfo(itm[index].snippet.resourceId.videoId);
     }
-    if (nextPageToken != null) await getPlaylistsInfo(id, nextPageToken);
+    if (nextPageToken != null)
+      countmutex.runExclusive(() => {
+        getPlaylistsInfo(id, nextPageToken);
+      });
   } catch (error) {
     throw new Error(error);
   }
@@ -71,11 +84,11 @@ const getPlaylistsInfo = async (id, pageToken = null) => {
 
 const statisticsOfVideo = () => {
   obj = {
-    totalVideo,
+    videoInPlaylist,
     totalDurationOfVideo,
-    avgVideoDuration: Math.round(totalDurationOfVideo / totalVideo),
+    avgVideoDuration: Math.round(totalDurationOfVideo / videoInPlaylist),
     totalLikeCount,
-    avgLikeCount: Math.round(totalLikeCount / totalVideo),
+    avgLikeCount: Math.round(totalLikeCount / videoInPlaylist),
     __comment__: "Video length is in seconds",
   };
   totalDurationOfVideo = 0;
@@ -84,8 +97,8 @@ const statisticsOfVideo = () => {
 };
 
 const get = async function (req, res) {
+  mainResponse = res;
   await getPlaylistsInfo(req.params.id);
-  res.send(statisticsOfVideo());
 };
 
 module.exports = get;
