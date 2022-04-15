@@ -1,8 +1,11 @@
 const axios = require("axios");
 require("dotenv").config;
+const lock = require("async-mutex");
+const apimutex = new lock.Mutex();
 
-
-let count=0;
+let totalDurationOfVideo = 0;
+let totalLikeCount = 0;
+let totalVideo = 0;
 
 getVideoTimeline = (time) => {
   const date = ["H", "M", "S"];
@@ -31,7 +34,11 @@ const getVideoInfo = async (id) => {
     const response = await axios.get(url);
     const itm = response.data.items;
     if (itm.length == 0) throw new Error("This is not id of playlist");
-    return getVideoTimeline(itm[0].contentDetails.duration);
+
+    await apimutex.runExclusive(() => {
+      totalDurationOfVideo += getVideoTimeline(itm[0].contentDetails.duration);
+      totalLikeCount += +itm[0].statistics.likeCount;
+    });
   } catch (error) {
     throw new Error(error);
   }
@@ -42,32 +49,43 @@ const getPlaylistsInfo = async (id, pageToken = null) => {
   if (pageToken != null) {
     currentToken = `pageToken=${pageToken}`;
   }
-  const url = `https://www.googleapis.com/youtube/v3/playlistItems?${currentToken}&part=snippet&maxResults=10&playlistId=${id}&key=${process.env.YOUTUBE_API}&fields=items(snippet(resourceId)),nextPageToken,prevPageToken`;
+  const url = `https://www.googleapis.com/youtube/v3/playlistItems?${currentToken}&part=snippet&maxResults=10&playlistId=${id}&key=${process.env.YOUTUBE_API}&fields=items(snippet(resourceId)),nextPageToken,prevPageToken,pageInfo`;
   try {
+
     const response = await axios.get(url);
     if (response.statusCode == 400) throw new Error(response.error);
 
-    const nextPageToken = await response.data.nextPageToken;
-    const prevPageToken = response.data.prevPageToken;
+    const nextPageToken =  response.data.nextPageToken;
     const itm = response.data.items;
 
-    itm.forEach(async (element) => {
-      console.log(await getVideoInfo(element.snippet.resourceId.videoId));
-    });
+    if (pageToken == null) totalVideo = +response.data.pageInfo.totalResults;
 
-
-    if(nextPageToken !=null) getPlaylistsInfo(id, nextPageToken);
-
-    console.log("END");
+    for (let index = 0; index < itm.length; index++) {
+      await getVideoInfo(itm[index].snippet.resourceId.videoId);
+    }
+    if (nextPageToken != null) await getPlaylistsInfo(id, nextPageToken);
   } catch (error) {
     throw new Error(error);
   }
 };
 
-const get = (req, res) => {
-  console.log("Start");
-  getPlaylistsInfo(req.params.id);
-  res.send("Project in the Development Mode");
+const statisticsOfVideo = () => {
+  obj = {
+    totalVideo,
+    totalDurationOfVideo,
+    avgVideoDuration: Math.round(totalDurationOfVideo / totalVideo),
+    totalLikeCount,
+    avgLikeCount: Math.round(totalLikeCount / totalVideo),
+    __comment__: "Video length is in seconds",
+  };
+  totalDurationOfVideo = 0;
+  totalLikeCount = 0;
+  return obj;
+};
+
+const get = async function (req, res) {
+  await getPlaylistsInfo(req.params.id);
+  res.send(statisticsOfVideo());
 };
 
 module.exports = get;
