@@ -37,7 +37,12 @@ const getVideoInfo = async (id) => {
   try {
     const response = await axios.get(url);
     const itm = response.data.items;
-    if (+itm.length == 0) throw new Error("Id is not good url " + url);
+    if (+itm.length == 0) {
+      await countmutex.runExclusive(() => {
+        totalVideo--;
+      });
+      return;
+    }
 
     await apimutex.runExclusive(() => {
       totalDurationOfVideo += getVideoTimeline(itm[0].contentDetails.duration);
@@ -57,7 +62,7 @@ const getPlaylistsInfo = async (id, pageToken = null) => {
   if (pageToken != null) {
     currentToken = `pageToken=${pageToken}`;
   }
-  const url = `https://www.googleapis.com/youtube/v3/playlistItems?${currentToken}&part=snippet&maxResults=10&playlistId=${id}&key=${process.env.YOUTUBE_API}&fields=items(snippet(resourceId)),nextPageToken,prevPageToken,pageInfo`;
+  const url = `https://www.googleapis.com/youtube/v3/playlistItems?${currentToken}&part=snippet&maxResults=20&playlistId=${id}&key=${process.env.YOUTUBE_API}&fields=items(snippet(resourceId)),nextPageToken,prevPageToken,pageInfo`;
   try {
     const response = await axios.get(url);
     if (response.statusCode == 400) throw new Error(response.error);
