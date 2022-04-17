@@ -11,6 +11,7 @@ class Youtube {
     this.totalLikeCount = 0;
     this.totalVideo = 0;
     this.videoInPlaylist = 0;
+    this.YoutubeAPI=0;
   }
 
   getVideoTimeline = (time) => {
@@ -36,7 +37,7 @@ class Youtube {
   };
 
   async getVideoInfo(id) {
-    const url = `https://www.googleapis.com/youtube/v3/videos?part=snippet%2CcontentDetails%2Cstatistics&id=${id}&fields=items(contentDetails(duration)),items(statistics(likeCount))&key=${process.env.YOUTUBE_API}`;
+    const url = `https://www.googleapis.com/youtube/v3/videos?part=snippet%2CcontentDetails%2Cstatistics&id=${id}&fields=items(contentDetails(duration)),items(statistics(likeCount))&key=${this.YoutubeAPI}`;
 
     try {
       const response = await axios.get(url);
@@ -61,7 +62,7 @@ class Youtube {
         });
       });
     } catch (error) {
-      throw new Error(error);
+      this.mainResponse.status(400).send("{\"error\":\"Error occurred api has cross the request limit or wrong playlist id or Wrong Youtube ID add\"} ");
     }
   }
 
@@ -70,7 +71,7 @@ class Youtube {
     if (pageToken != null) {
       currentToken = `pageToken=${pageToken}`;
     }
-    const url = `https://www.googleapis.com/youtube/v3/playlistItems?${currentToken}&part=snippet&maxResults=50&playlistId=${id}&key=${process.env.YOUTUBE_API}&fields=items(snippet(resourceId)),nextPageToken,prevPageToken,pageInfo`;
+    const url = `https://www.googleapis.com/youtube/v3/playlistItems?${currentToken}&part=snippet&maxResults=50&playlistId=${id}&key=${this.YoutubeAPI}&fields=items(snippet(resourceId)),nextPageToken,prevPageToken,pageInfo`;
     try {
       const response = await axios.get(url);
       if (response.statusCode == 400) throw new Error(response.error);
@@ -92,7 +93,7 @@ class Youtube {
         });
     } catch (error) {
       console.error(url);
-      throw new Error(error);
+      this.mainResponse.status(400).send("{\"error\":\"Error occurred api has cross the request limit or wrong playlist id or Wrong Youtube ID add\"} ");
     }
   }
 
@@ -120,6 +121,8 @@ class Youtube {
 const get = async function (req, res) {
   let youtube = new Youtube();
   youtube.Youtube();
+  youtube.YoutubeAPI= req.params.api ==undefined ? process.env.YOUTUBE_API:req.params.api;
+
   youtube.mainResponse = res;
   await youtube.getPlaylistsInfo(req.params.id);
 };
