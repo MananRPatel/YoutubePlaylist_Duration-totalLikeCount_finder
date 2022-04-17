@@ -11,7 +11,7 @@ class Youtube {
     this.totalLikeCount = 0;
     this.totalVideo = 0;
     this.videoInPlaylist = 0;
-    this.YoutubeAPI=0;
+    this.YoutubeAPI = 0;
   }
 
   getVideoTimeline = (time) => {
@@ -62,7 +62,11 @@ class Youtube {
         });
       });
     } catch (error) {
-      this.mainResponse.status(400).send("{\"error\":\"Error occurred api has cross the request limit or wrong playlist id or Wrong Youtube ID add\"} ");
+      this.mainResponse
+        .status(400)
+        .send(
+          '{"error":"Error occurred api has cross the request limit or wrong playlist id or Wrong Youtube ID add"} '
+        );
     }
   }
 
@@ -93,8 +97,13 @@ class Youtube {
         });
     } catch (error) {
       console.error(url);
-      this.mainResponse.status(400).send("{\"error\":\"Error occurred api has cross the request limit or wrong playlist id or Wrong Youtube ID add\"} ");
-    }
+      this.mainResponse
+        .status(400)
+        .send(
+          '{"error":"Error occurred api has cross the request limit or wrong playlist id or Wrong Youtube ID add"} '
+        );
+    
+      }
   }
 
   statisticsOfVideo() {
@@ -121,7 +130,8 @@ class Youtube {
 const get = async function (req, res) {
   let youtube = new Youtube();
   youtube.Youtube();
-  youtube.YoutubeAPI= req.params.api ==undefined ? process.env.YOUTUBE_API:req.params.api;
+  youtube.YoutubeAPI =
+    req.params.api == undefined ? process.env.YOUTUBE_API : req.params.api;
 
   youtube.mainResponse = res;
   await youtube.getPlaylistsInfo(req.params.id);
