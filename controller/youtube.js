@@ -1,11 +1,13 @@
 const axios = require("axios");
 require("dotenv").config;
-const lock = require("async-mutex");
-const apimutex = new lock.Mutex();
-const countmutex = new lock.Mutex();
 
 class Youtube {
   Youtube() {
+    this.lock = require("async-mutex");
+    this.apimutex = new this.lock.Mutex();
+    this.countmutex = new this.lock.Mutex();
+    this.sendmutex = new this.lock.Mutex();
+
     this.mainResponse = 0;
     this.totalDurationOfVideo = 0;
     this.totalLikeCount = 0;
@@ -40,6 +42,7 @@ class Youtube {
     const url = `https://www.googleapis.com/youtube/v3/videos?part=snippet%2CcontentDetails%2Cstatistics&id=${id}&fields=items(contentDetails(duration)),items(statistics(likeCount))&key=${this.YoutubeAPI}`;
 
     try {
+      const countmutex = this.countmutex;
       const response = await axios.get(url);
       const itm = response.data.items;
       if (+itm.length == 0) {
@@ -48,8 +51,7 @@ class Youtube {
         });
         return;
       }
-
-      await apimutex.runExclusive(() => {
+      await this.apimutex.runExclusive(() => {
         this.totalDurationOfVideo += this.getVideoTimeline(
           itm[0].contentDetails.duration
         );
@@ -57,16 +59,21 @@ class Youtube {
           this.totalLikeCount += +itm[0].statistics.likeCount;
         countmutex.runExclusive(() => {
           this.totalVideo--;
-          if (this.totalVideo == 0)
-            this.mainResponse.send(this.statisticsOfVideo());
+
+          if (this.totalVideo == 0) {
+            if (!this.sendmutex.isLocked())
+              this.sendmutex.acquire().then((release) => {
+                this.mainResponse.send(this.statisticsOfVideo());
+              });
+          }
         });
       });
     } catch (error) {
-      this.mainResponse
-        .status(400)
-        .send(
-          '{"error":"Error occurred api has cross the request limit or wrong playlist id or Wrong Youtube ID add"} '
-        );
+      if (!this.sendmutex.isLocked())
+        this.sendmutex.acquire().then((release) => {
+          if (error.response.data == null) this.SendError(500);
+          else this.SendError(error.response.data.error.code);
+        });
     }
   }
 
@@ -78,12 +85,10 @@ class Youtube {
     const url = `https://www.googleapis.com/youtube/v3/playlistItems?${currentToken}&part=snippet&maxResults=50&playlistId=${id}&key=${this.YoutubeAPI}&fields=items(snippet(resourceId)),nextPageToken,prevPageToken,pageInfo`;
     try {
       const response = await axios.get(url);
-      if (response.statusCode == 400) throw new Error(response.error);
       const nextPageToken = await response.data.nextPageToken;
       const itm = response.data.items;
-
       if (pageToken == null)
-        countmutex.runExclusive(() => {
+        this.countmutex.runExclusive(() => {
           this.totalVideo = +response.data.pageInfo.totalResults;
           this.videoInPlaylist = this.totalVideo;
         });
@@ -92,18 +97,16 @@ class Youtube {
         this.getVideoInfo(itm[index].snippet.resourceId.videoId);
       }
       if (nextPageToken != null)
-        countmutex.runExclusive(() => {
+        this.countmutex.runExclusive(() => {
           this.getPlaylistsInfo(id, nextPageToken);
         });
     } catch (error) {
-      console.error(url);
-      this.mainResponse
-        .status(400)
-        .send(
-          '{"error":"Error occurred api has cross the request limit or wrong playlist id or Wrong Youtube ID add"} '
-        );
-    
-      }
+      if (!this.sendmutex.isLocked())
+        this.sendmutex.acquire().then((release) => {
+          if (error.response.data == null) this.SendError(500);
+          else this.SendError(error.response.data.error.code);
+        });
+    }
   }
 
   statisticsOfVideo() {
@@ -121,9 +124,29 @@ class Youtube {
       avgVideoDuration,
       totalLikeCount,
       avgLikeCount,
-      __comment__: "Video length is in seconds",
+      __comment__: "Video Duration is in seconds",
     };
     return obj;
+  }
+
+  SendError(code) {
+    switch (code) {
+      case 400:
+        this.mainResponse.status(code).send({ error: "wrong API key entered" });
+        break;
+      case 403:
+        this.mainResponse.status(code).send({
+          error: "Here my api key quota is overed so pleased add your API key",
+        });
+        break;
+      case 404:
+        this.mainResponse.status(code).send({ error: "Wrong PlaylistId" });
+        break;
+      default:
+        this.mainResponse
+          .status(code)
+          .send({ error: "Error can't resolve now" });
+    }
   }
 }
 
@@ -132,7 +155,6 @@ const get = async function (req, res) {
   youtube.Youtube();
   youtube.YoutubeAPI =
     req.params.api == undefined ? process.env.YOUTUBE_API : req.params.api;
-
   youtube.mainResponse = res;
   await youtube.getPlaylistsInfo(req.params.id);
 };
