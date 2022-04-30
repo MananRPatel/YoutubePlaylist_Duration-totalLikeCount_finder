@@ -8,5 +8,26 @@ will be in JSON format
 ## app deploy 
 youtube-playlist-duration-api.herokuapp.com
 ## [this link for testing purpose](https://youtube-playlist-duration-api.herokuapp.com/api/PLLYz8uHU480j37APNXBdPz7YzAi4XlQUF)
+
+## [docker hub image link](https://hub.docker.com/r/hellodockerspacecon/youtubeplaylisttotaldurationlikefinder)
+
+## you can pull the image use below command
+```bash
+docker pull hellodockerspacecon/youtubeplaylisttotaldurationlikefinder
+```
+## for run the image use below command
+
+```bash
+docker run -option -p hostPort:3000 --env-file envFilePath hellodockerspacecon/youtubeplaylisttotaldurationlikefinder 
+```
+
+### .env should contain below  details
+
+```text
+YOUTUBE_API="Your Youtube API key"
+
+PORT=5000
+```
+
 ## Here i use youtube api which is limited request available.
 so you can use your YouTube API key also (ipaddress:port/api/:playlistId/:YouTubeAPI key)
