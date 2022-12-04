@@ -7,7 +7,7 @@ ipaddress:port/api/:playlistId
 will be in JSON format 
 ## app deploy 
 youtube-playlist-duration-api.herokuapp.com
-## [this link for testing purpose](https://youtube-playlist-duration-api.herokuapp.com/api/PLLYz8uHU480j37APNXBdPz7YzAi4XlQUF)
+## [this link for testing purpose](https://youtubeplaylistdurationlikecounter.onrender.com/api/PLLYz8uHU480j37APNXBdPz7YzAi4XlQUF)
 
 ## [docker hub image link](https://hub.docker.com/r/hellodockerspacecon/youtubeplaylisttotaldurationlikefinder)
 
