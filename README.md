@@ -6,7 +6,7 @@ ipaddress:port/api/:playlistId
 ## Output 
 will be in JSON format 
 ## app deploy 
-youtube-playlist-duration-api.herokuapp.com
+youtubeplaylistdurationlikecounter.onrender.com
 ## [this link for testing purpose](https://youtubeplaylistdurationlikecounter.onrender.com/api/PLLYz8uHU480j37APNXBdPz7YzAi4XlQUF)
 
 ## [docker hub image link](https://hub.docker.com/r/hellodockerspacecon/youtubeplaylisttotaldurationlikefinder)
